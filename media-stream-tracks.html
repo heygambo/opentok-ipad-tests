@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <script src="https://static.opentok.com/v2.16.3/js/opentok.min.js"></script>
+    <title>Media Stream Tracks</title>
+    <script>
+      async function askForPermission() {
+        // 1. Makes sure we have permission to fetch devices
+        const tmpMediaStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        })
+        // 2. Stops all Media Stream Tracks again.
+        tmpMediaStream.getTracks().forEach(track => track.stop())
+      }
+
+      // Gets the list of possible devices
+      let devices
+      let audioDevices
+      let videoDevices
+      async function getDevices() {
+        // 1. Gets list of devices
+        devices = await navigator.mediaDevices.enumerateDevices()
+        // 2. Filters out all audio devices
+        audioDevices = devices.filter(device => device.kind === 'audioinput')
+        // 3. Filters out all video devices
+        videoDevices = devices.filter(device => device.kind === 'videoinput')
+        // 4. Render out input select options
+        const $audioInputSelect = document.getElementById('audioInputSelect')
+        const $videoInputSelect = document.getElementById('videoInputSelect')
+        $audioInputSelect.querySelectorAll('option').forEach(option => {
+          if (option.value !== '') {
+            option.remove()
+          }
+        })
+        audioDevices.forEach(device => {
+          const $option = document.createElement('option')
+          $option.value = device.deviceId
+          $option.textContent = device.label
+          $audioInputSelect.appendChild($option)
+        })
+        $videoInputSelect.querySelectorAll('option').forEach(option => {
+          if (option.value !== '') {
+            option.remove()
+          }
+        })
+        videoDevices.forEach(device => {
+          const $option = document.createElement('option')
+          $option.value = device.deviceId
+          $option.textContent = device.label
+          $videoInputSelect.appendChild($option)
+        })
+        // 5. Selects the first entry so you don't have to
+        $audioInputSelect.value = audioDevices[0].deviceId
+        $videoInputSelect.value = videoDevices[0].deviceId
+      }
+
+      // Initializes a media stream
+      let localMediaStream
+      let $video
+      async function startMediaStream() {
+        const audioDeviceId = document.getElementById('audioInputSelect').value
+        const videoDeviceId = document.getElementById('videoInputSelect').value
+        if (!audioDeviceId) {
+          alert('Audio Device Id has to be selected')
+          return
+        }
+        if (!videoDeviceId) {
+          alert('Video Device Id has to be selected')
+          return
+        }
+        if ($video) {
+          $video.remove()
+        }
+        const mediaStreamConstraints = {
+          audio: {
+            deviceId: audioDeviceId,
+          },
+          video: {
+            deviceId: videoDeviceId,
+          },
+        }
+        console.debug('mediaStreamConstraints', mediaStreamConstraints)
+        localMediaStream = await navigator.mediaDevices.getUserMedia(
+          mediaStreamConstraints
+        )
+        $video = document.createElement('video')
+        $video.autoplay = true
+        $video.volume = 0
+        $video.srcObject = localMediaStream
+        document.getElementById('localMediaStreamPreview').appendChild($video)
+      }
+
+      async function stopMediaStream() {
+        if (localMediaStream) {
+          localMediaStream.getTracks().forEach(track => track.stop())
+          localMediaStream = null
+        }
+        if ($video) {
+          $video.remove()
+          $video = null
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', () => {
+        document
+          .getElementById('askForPermission')
+          .addEventListener('click', askForPermission)
+        document
+          .getElementById('getDevices')
+          .addEventListener('click', getDevices)
+        document
+          .getElementById('startMediaStream')
+          .addEventListener('click', startMediaStream)
+        document
+          .getElementById('stopMediaStream')
+          .addEventListener('click', stopMediaStream)
+
+        // TODO: remove before release.
+        getDevices()
+      })
+    </script>
+  </head>
+
+  <body>
+    <h1>Test with Media Stream Tracks</h1>
+
+    <p>
+      This example demostrates how to initialize an OpenTok Publisher using
+      existing Media Stream Tracks.
+    </p>
+
+    <button id="askForPermission">Ask for permission</button>
+    <button id="getDevices">Get Devices</button>
+
+    <br /><br />
+
+    <fieldset>
+      <legend>Devices</legend>
+      <div class="form-field">
+        <label for="audioInputSelect">Audio Input</label>
+        <select id="audioInputSelect">
+          <option value="">Select Audio Input</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="videoInputSelect">Video Input</label>
+        <select id="videoInputSelect">
+          <option value="">Select Video Input</option>
+        </select>
+      </div>
+    </fieldset>
+
+    <button id="startMediaStream">Start MediaStream</button>
+    <button id="stopMediaStream">Stop MediaStream</button>
+
+    <div id="localMediaStreamPreview"></div>
+
+    <br /><br />
+
+    <fieldset>
+      <legend>OpenTok Credentials</legend>
+      <div class="form-field">
+        <label for="sessionId">Session ID</label>
+        <input id="sessionId" />
+      </div>
+      <div class="form-field">
+        <label for="token">Token</label>
+        <input id="token" />
+      </div>
+    </fieldset>
+
+    <br /><br />
+
+    <nav class="footer-nav">
+      <a href="index.html">back</a>
+    </nav>
+  </body>
+</html>
