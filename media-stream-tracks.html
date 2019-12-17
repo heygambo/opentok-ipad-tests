@@ -60,6 +60,8 @@
 
       // Initializes a media stream
       let localMediaStream
+      let localAudioStreamTrack
+      let localVideoStreamTrack
       let $video
       async function startMediaStream() {
         const audioDeviceId = document.getElementById('audioInputSelect').value
@@ -87,6 +89,8 @@
         localMediaStream = await navigator.mediaDevices.getUserMedia(
           mediaStreamConstraints
         )
+        localAudioStreamTrack = localMediaStream.getAudioTracks()[0]
+        localVideoStreamTrack = localMediaStream.getVideoTracks()[0]
         $video = document.createElement('video')
         $video.autoplay = true
         $video.volume = 0
@@ -94,7 +98,9 @@
         document.getElementById('localMediaStreamPreview').appendChild($video)
       }
 
+      // Stops local media streams
       async function stopMediaStream() {
+        stopSession()
         if (localMediaStream) {
           localMediaStream.getTracks().forEach(track => track.stop())
           localMediaStream = null
@@ -102,6 +108,77 @@
         if ($video) {
           $video.remove()
           $video = null
+        }
+      }
+
+      let streams = []
+      function handleStreamCreated (event) {
+        const stream = event.stream
+        console.log('stream created:', stream)
+      }
+
+      function handleStreamDestroyed (event) {
+        const stream = event.stream
+        console.log('stream destroyed:', stream)
+      }
+
+      // Creates and starts an OpenTok Session
+      let session
+      let publisher
+      function startSession () {
+        if (!localAudioStreamTrack) {
+          alert('Start Media Stream first')
+          return
+        }
+        if (!localVideoStreamTrack) {
+          alert('Start Media Stream first')
+          return
+        }
+        const apiKey = document.getElementById('apiKey').value
+        const sessionId = document.getElementById('sessionId').value
+        const token = document.getElementById('token').value
+        session = OT.initSession(apiKey, sessionId)
+        session.on('streamCreated', handleStreamCreated)
+        session.on('streamDestroyed', handleStreamDestroyed)
+        session.connect(token, error => {
+          if (error) {
+            console.error('Error while connecting to opentok...', error)
+          } else {
+            const properties = {
+              audioSource: localAudioStreamTrack,
+              insertDefaultUI: false,
+              publishAudio: true,
+              publishVideo: true,
+              showControls: false,
+              videoSource: localVideoStreamTrack,
+            }
+            console.debug('Publisher Properties', properties)
+            publisher = OT.initPublisher(properties, error => {
+              if (error) {
+                console.error('Error while creating publisher stream...', error)
+              } else {
+
+                session.publish(publisher, error => {
+                  if (error) {
+                    console.error('Error while publishing', error)
+                  } else {
+                    console.info('Published successfully.')
+                  }
+                })
+              }
+            })
+          }
+        })
+      }
+
+      function stopSession () {
+        if (publisher) {
+          publisher.destroy()
+          publisher = null
+        }
+        if (session) {
+          session.disconnect()
+          session = null
         }
       }
 
@@ -118,6 +195,12 @@
         document
           .getElementById('stopMediaStream')
           .addEventListener('click', stopMediaStream)
+        document
+          .getElementById('startSession')
+          .addEventListener('click', startSession)
+        document
+          .getElementById('stopSession')
+          .addEventListener('click', stopSession)
 
         // TODO: remove before release.
         getDevices()
@@ -164,14 +247,26 @@
     <fieldset>
       <legend>OpenTok Credentials</legend>
       <div class="form-field">
+        <label for="apiKey">API Key</label>
+        <input id="apiKey" value="" />
+      </div>
+      <div class="form-field">
         <label for="sessionId">Session ID</label>
-        <input id="sessionId" />
+        <input id="sessionId" value="" />
       </div>
       <div class="form-field">
         <label for="token">Token</label>
-        <input id="token" />
+        <input id="token" value="" />
       </div>
     </fieldset>
+
+    <br /><br />
+
+    <button id="startSession">Start Session</button>
+    <button id="stopSession">Stop Session</button>
+
+    <h2>Subscribed Streams</h2>
+    <div class="subscribedStreams"></div>
 
     <br /><br />
 
